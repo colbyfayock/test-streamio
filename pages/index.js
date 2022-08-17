@@ -1,8 +1,173 @@
+import { useEffect, useState, useRef } from 'react';
 import Head from 'next/head'
 import Image from 'next/image'
+import YouTube from 'react-youtube';
+
+import { StreamChat } from 'stream-chat';
+import { Chat, Channel, ChannelHeader, MessageInput, MessageInputSmall, VirtualizedMessageList, Window } from 'stream-chat-react';
+
+import 'stream-chat-react/dist/css/index.css';
 import styles from '../styles/Home.module.css'
 
+const channelInfo = {
+  id: `spacejelly-${Date.now()}`,
+  name: 'Space Jelly',
+  image: 'https://fay.io/w/colby-hug.jpg'
+}
+
 export default function Home() {
+  const [user, setUser] = useState({});
+  const [client, setClient] = useState();
+  const [channel, setChannel] = useState();
+  const [messages, setMessages] = useState([]);
+
+  const videoRef = useRef();
+
+  useEffect(() => {
+    if ( !user.id ) return;
+
+    (async function run() {
+
+      // Initialize Client
+
+      const client = StreamChat.getInstance(process.env.NEXT_PUBLIC_STREAM_API_KEY);
+
+      setClient(client);
+
+      // Get Token
+
+      const { token } = await fetch('/api/token', {
+        method: 'POST',
+        body: JSON.stringify({
+          id: user.id
+        })
+      }).then(r => r.json());
+
+      setUser(prev => {
+        return {
+          ...prev,
+          token
+        }
+      });
+
+      // Connect User
+
+      await client.connectUser(
+        {
+          id: user.id,
+          name: user.id,
+          image: 'https://picsum.photos/600/600',
+        },
+        token,
+      );
+
+      // Set the channel
+
+      const channel = client.channel('livestream', channelInfo.id, {
+        image: channelInfo.image,
+        name: channelInfo.name,
+      });
+
+      setChannel(channel);
+    })();
+
+    return () => {
+
+      // When unmounting, if we have a client at this point, disconnect the user
+
+      if ( client ) {
+        client.disconnectUser();
+        setChannel(undefined);
+      }
+    }
+  }, [user.id]);
+
+  // Set up event handlers for listening to channel events
+
+  useEffect(() => {
+    if ( !channel ) return;
+    const listenerMessageNew = channel.on('message.new', onNewMessage);
+    return () => {
+      listenerMessageNew.unsubscribe();
+    }
+  }, [channel])
+
+  /**
+   * onStart
+   */
+
+  function onStart() {
+    const internalPlayer = videoRef.current.getInternalPlayer();
+
+    internalPlayer.pauseVideo();
+    internalPlayer.seekTo(0);
+    internalPlayer.playVideo();
+  }
+
+  /**
+   * onReplayStart
+   */
+
+  function onReplayStart() {
+    const internalPlayer = videoRef.current.getInternalPlayer();
+
+    internalPlayer.pauseVideo();
+    internalPlayer.seekTo(0);
+    internalPlayer.playVideo();
+
+    // Create a unique channel instance to replay with
+
+    const channel = client.channel('livestream', `${channelInfo.id}-replay-${Date.now()}`, {
+      image: channelInfo.image,
+      name: channelInfo.name,
+    });
+
+    setChannel(channel);
+
+    syncChannelMessages(channel);
+  }
+
+  /**
+   * syncChannelMessages
+   */
+
+  function syncChannelMessages(clientChannel) {
+    const myInterval = setInterval(async () => {
+      const internalPlayer = videoRef.current.getInternalPlayer();
+      const time = await internalPlayer.getCurrentTime();
+
+      const currentMessages = messages.filter(({ time: messageTime }) => {
+        const diff = time - messageTime;
+        return diff <= 1 && diff > 0
+      });
+
+      for ( let i = 0, messagesLen = currentMessages.length; i < messagesLen; i++ ) {
+        const { message } = currentMessages[i];
+        await clientChannel.sendMessage({
+          text: message.text
+        });
+      }
+    }, 1000);
+  }
+
+  /**
+   * onNewMessage
+   */
+
+  async function onNewMessage(event) {
+    const internalPlayer = videoRef.current.getInternalPlayer();
+    const time = await internalPlayer.getCurrentTime();
+    setMessages(prev => {
+      return [
+        ...prev,
+        {
+          message: event.message,
+          time
+        }
+      ]
+    })
+  }
+
   return (
     <div className={styles.container}>
       <Head>
@@ -12,58 +177,41 @@ export default function Home() {
       </Head>
 
       <main className={styles.main}>
-        <h1 className={styles.title}>
-          Welcome to <a href="https://nextjs.org">Next.js!</a>
-        </h1>
 
-        <p className={styles.description}>
-          Get started by editing{' '}
-          <code className={styles.code}>pages/index.js</code>
-        </p>
-
-        <div className={styles.grid}>
-          <a href="https://nextjs.org/docs" className={styles.card}>
-            <h2>Documentation &rarr;</h2>
-            <p>Find in-depth information about Next.js features and API.</p>
-          </a>
-
-          <a href="https://nextjs.org/learn" className={styles.card}>
-            <h2>Learn &rarr;</h2>
-            <p>Learn about Next.js in an interactive course with quizzes!</p>
-          </a>
-
-          <a
-            href="https://github.com/vercel/next.js/tree/canary/examples"
-            className={styles.card}
-          >
-            <h2>Examples &rarr;</h2>
-            <p>Discover and deploy boilerplate example Next.js projects.</p>
-          </a>
-
-          <a
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=default-template&utm_campaign=create-next-app"
-            className={styles.card}
-          >
-            <h2>Deploy &rarr;</h2>
+        <form onSubmit={(e) => {
+          e.preventDefault();
+          const id = Array.from(e.currentTarget.elements).find(({ name }) => name ==='userId').value;
+          setUser({ id });
+        }}>
+          <input type="text" name="userId" />
+          <button>Set User ID</button>
+        </form>
+        {user?.id && (
+          <>
             <p>
-              Instantly deploy your Next.js site to a public URL with Vercel.
+              <button onClick={onStart}>Start</button>
+              <button onClick={onReplayStart}>Replay</button>
             </p>
-          </a>
-        </div>
-      </main>
 
-      <footer className={styles.footer}>
-        <a
-          href="https://vercel.com?utm_source=create-next-app&utm_medium=default-template&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Powered by{' '}
-          <span className={styles.logo}>
-            <Image src="/vercel.svg" alt="Vercel Logo" width={72} height={16} />
-          </span>
-        </a>
-      </footer>
+            <div className={styles.stream}>
+              <YouTube ref={videoRef} videoId="aYZRRyukuIw" />
+
+              {client && channel && (
+                <Chat client={client} theme='livestream dark'>
+                  <Channel channel={channel}>
+                    <Window>
+                      <ChannelHeader live />
+                      <VirtualizedMessageList />
+                      <MessageInput Input={MessageInputSmall} focus />
+                    </Window>
+                  </Channel>
+                </Chat>
+              )}
+            </div>
+          </>
+        )}
+
+      </main>
     </div>
   )
 }

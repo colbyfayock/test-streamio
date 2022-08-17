@@ -1,6 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  reactStrictMode: true,
+  // To avoid double render on dev, set this to false
+  reactStrictMode: false,
   swcMinify: true,
 }
 
