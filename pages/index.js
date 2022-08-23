@@ -178,31 +178,43 @@ export default function Home() {
 
       <main className={styles.main}>
 
-        <form onSubmit={(e) => {
-          e.preventDefault();
-          const id = Array.from(e.currentTarget.elements).find(({ name }) => name ==='userId').value;
-          setUser({ id });
-        }}>
-          <input type="text" name="userId" />
-          <button>Set User ID</button>
-        </form>
+        {!user?.id && (
+          <>
+            <h1>Stream</h1>
+
+            <p>To get started, enter your username or alias:</p>
+
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              const id = Array.from(e.currentTarget.elements).find(({ name }) => name ==='userId').value;
+              setUser({ id });
+            }}>
+              <input type="text" name="userId" />
+              <button>Join</button>
+            </form>
+          </>
+        )}
+
         {user?.id && (
           <>
-            <p>
-              <button onClick={onStart}>Start</button>
-              <button onClick={onReplayStart}>Replay</button>
-            </p>
-
             <div className={styles.stream}>
-              <YouTube ref={videoRef} videoId="aYZRRyukuIw" />
+              <div className={styles.streamVideo}>
+                <YouTube ref={videoRef} videoId="aYZRRyukuIw" />
+                <p>
+                  <button onClick={onStart}>Start</button>
+                  <button onClick={onReplayStart}>Replay</button>
+                </p>
+              </div>
 
               {client && channel && (
-                <Chat client={client} theme='livestream dark'>
+                <Chat client={client} theme="livestream dark" style={{ height: '50vh' }}>
                   <Channel channel={channel}>
                     <Window>
                       <ChannelHeader live />
                       <VirtualizedMessageList />
-                      <MessageInput Input={MessageInputSmall} focus />
+                      {!channel.id.includes('replay') && (
+                        <MessageInput Input={MessageInputSmall} focus />
+                      )}
                     </Window>
                   </Channel>
                 </Chat>
