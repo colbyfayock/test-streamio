@@ -105,6 +105,16 @@ export default function Home() {
   }
 
   /**
+   * onStop
+   */
+
+  function onStop() {
+    const internalPlayer = videoRef.current.getInternalPlayer();
+
+    internalPlayer.pauseVideo();
+  }
+
+  /**
    * onReplayStart
    */
 
@@ -199,9 +209,14 @@ export default function Home() {
           <>
             <div className={styles.stream}>
               <div className={styles.streamVideo}>
-                <YouTube ref={videoRef} videoId="aYZRRyukuIw" />
+                <YouTube ref={videoRef} videoId="aYZRRyukuIw"  opts={{
+                  playerVars: {
+                    controls: 0
+                  }
+                }} />
                 <p>
                   <button onClick={onStart}>Start</button>
+                  <button onClick={onStop}>Stop</button>
                   <button onClick={onReplayStart}>Replay</button>
                 </p>
               </div>
